@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circle Spawn and Move</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #f0f0f0;
+        font-family: Arial, sans-serif;
+    }
+    canvas {
+        display: block;
+    }
+    #title {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-weight: bold;
+    }
+    #buttonContainer {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    .spawnButton {
+        margin: 0 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+<div id="title">Red Target</div>
+<div id="title2">RC_02</div>
+<canvas id="gameCanvas"></canvas>
+<div id="buttonContainer">
+    <button class="spawnButton" id="blueSpawnButton">Spawn Blue Circle (Space)</button>
+    <button class="spawnButton" id="redSpawnButton">Spawn Red Circle (Shift)</button>
+</div>
+
+<script>
+    // Initialize canvas
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Circle arrays
+    let blueCircles = [];
+    let redCircles = [];
+
+    // Function to draw circles
+    function drawCircle(x, y, radius, color) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    // Function to update canvas
+    function updateCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        blueCircles.forEach(circle => {
+            drawCircle(circle.x, circle.y, circle.radius, 'blue');
+        });
+        redCircles.forEach(circle => {
+            drawCircle(circle.x, circle.y, circle.radius, 'red');
+        });
+    }
+
+    // Function to handle mouse events
+    function handleMouseEvent(event) {
+        const mouseX = event.clientX;
+        const mouseY = event.clientY;
+
+        // Check if mouse is within any circle
+        let selectedCircleIndex = -1;
+        blueCircles.forEach((circle, index) => {
+            const dx = mouseX - circle.x;
+            const dy = mouseY - circle.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < circle.radius) {
+                selectedCircleIndex = index;
+            }
+        });
+
+        if (selectedCircleIndex !== -1) {
+            let isDragging = false;
+            let offsetX = 0;
+            let offsetY = 0;
+
+            const selectedCircle = blueCircles[selectedCircleIndex];
+
+            // Mouse move event listener
+            const mouseMoveHandler = (e) => {
+                if (isDragging) {
+                    let newX = e.clientX - offsetX;
+                    let newY = e.clientY - offsetY;
+
+                    // Ensure the circle stays within the canvas bounds
+                    newX = Math.max(selectedCircle.radius, Math.min(canvas.width - selectedCircle.radius, newX));
+                    newY = Math.max(selectedCircle.radius, Math.min(canvas.height - selectedCircle.radius, newY));
+
+                    selectedCircle.x = newX;
+                    selectedCircle.y = newY;
+                    updateCanvas();
+                }
+            };
+
+            // Mouse up event listener
+            const mouseUpHandler = () => {
+                isDragging = false;
+                window.removeEventListener('mousemove', mouseMoveHandler);
+                window.removeEventListener('mouseup', mouseUpHandler);
+            };
+
+            // Start dragging
+            isDragging = true;
+            offsetX = mouseX - selectedCircle.x;
+            offsetY = mouseY - selectedCircle.y;
+            window.addEventListener('mousemove', mouseMoveHandler);
+            window.addEventListener('mouseup', mouseUpHandler);
+        }
+    }
+
+    // Event listener for mouse down
+    canvas.addEventListener('mousedown', handleMouseEvent);
+
+    // Function to spawn blue circle
+    function spawnBlueCircle() {
+        const circle = {
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            radius: 15
+        };
+        blueCircles.push(circle);
+        updateCanvas();
+    }
+
+    // Function to spawn red circle
+    function spawnRedCircle() {
+        const circle = {
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            radius: 20,
+            speed: 5, // Speed of movement towards blue circles
+            targetIndex: -1 // Index of the blue circle currently being targeted
+        };
+        redCircles.push(circle);
+        updateCanvas();
+    }
+
+    // Function to delete all red circles
+    function deleteRedCircles() {
+        redCircles = [];
+        updateCanvas();
+    }
+
+    // Event listener for space key to spawn blue circle
+    window.addEventListener('keydown', (event) => {
+        if (event.code === 'Space') {
+            spawnBlueCircle();
+        } else if (event.code === 'ShiftLeft') {
+            spawnRedCircle();
+        } else if (event.code === 'Tab') {
+            deleteRedCircles();
+        }
+    });
+
+    // Event listeners for buttons
+    document.getElementById('blueSpawnButton').addEventListener('click', spawnBlueCircle);
+    document.getElementById('redSpawnButton').addEventListener('click', spawnRedCircle);
+
+    // Update function to move red circles towards blue circles
+    function update() {
+        redCircles.forEach(redCircle => {
+            // Find the closest blue circle to target
+            let minDistance = Infinity;
+            let targetIndex = -1;
+            blueCircles.forEach((blueCircle, index) => {
+                const dx = blueCircle.x - redCircle.x;
+                const dy = blueCircle.y - redCircle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    targetIndex = index;
+                }
+            });
+            if (targetIndex !== -1) {
+                // Move towards the targeted blue circle
+                const target = blueCircles[targetIndex];
+                const dx = target.x - redCircle.x;
+                const dy = target.y - redCircle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const velocityX = (dx / distance) * redCircle.speed;
+                const velocityY = (dy / distance) * redCircle.speed;
+                redCircle.x += velocityX;
+                redCircle.y += velocityY;
+                // Check collision with targeted blue circle
+                checkCollision(redCircle, target);
+            }
+            updateCanvas();
+        });
+    }
+
+    // Function to check collision between red and blue circles
+    function checkCollision(redCircle, blueCircle) {
+        const dx = redCircle.x - blueCircle.x;
+        const dy = redCircle.y - blueCircle.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < redCircle.radius + blueCircle.radius) {
+            // Destroy blue circle
+            blueCircles.splice(blueCircles.indexOf(blueCircle), 1); // Remove blue circle
+            updateCanvas();
+        }
+    }
+
+    // Game loop
+    setInterval(update, 1000 / 60); // 60 frames per second
+</script>
+</body>
+</html>
