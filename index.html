@@ -339,11 +339,25 @@
             img.onload = function() {
                 canvas.style.background = 'url(' + img.src + ')';
                 canvas.style.backgroundSize = 'cover';
+
+                // Save background image URL to localStorage
+                localStorage.setItem('backgroundImage', img.src);
             };
         };
 
         reader.readAsDataURL(file);
     });
+
+    // Check if background image URL exists in localStorage
+    const backgroundImageURL = localStorage.getItem('backgroundImage');
+    if (backgroundImageURL) {
+        const img = new Image();
+        img.src = backgroundImageURL;
+        img.onload = function() {
+            canvas.style.background = 'url(' + img.src + ')';
+            canvas.style.backgroundSize = 'cover';
+        };
+    }
 
     // Update function to move red circles towards blue circles
     function update() {
