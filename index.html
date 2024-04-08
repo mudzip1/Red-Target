@@ -3,17 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Circle Spawn and Move</title>
+<title>Red Target 1.2</title>
 <style>
     body {
         margin: 0;
         padding: 0;
         overflow: hidden;
-        background-color: #f0f0f0;
-        font-family: Arial, sans-serif;
+        background-color: #202020;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     canvas {
         display: block;
+        background-color: #303030;
+        margin: auto;
+        border-radius: 10px; 
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     }
     #title {
         position: absolute;
@@ -21,65 +25,157 @@
         left: 50%;
         transform: translateX(-50%);
         font-weight: bold;
+        color: #ffffff;
+        font-size: 24px;
+    }
+    #title2 {
+        position: absolute;
+        top: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-weight: bold;
+        color: #ffffff;
+        font-size: 18px;
+    }
+    #controlsContainer {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        font-size: 16px;
+        line-height: 1.5;
     }
     #buttonContainer {
         position: absolute;
         bottom: 20px;
         left: 50%;
         transform: translateX(-50%);
+        display: flex;
+        flex-direction: row; /* Changed to row */
+        gap: 10px;
+        align-items: center;
     }
     .spawnButton {
-        margin: 0 10px;
         padding: 10px 20px;
         font-size: 16px;
         cursor: pointer;
+        background-color: #111111;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        transition: background-color 0.3s;
+    }
+    .spawnButton:hover {
+        background-color: #222222;
+    }
+    #fpsCounter {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        color: white;
+        font-size: 16px;
+    }
+    #objectCounter {
+        position: absolute;
+        top: 50px;
+        right: 20px;
+        color: white;
+        font-size: 16px;
+    }
+    #zoomSlider {
+        width: 150px;
+    }
+    #circleSizeSlider {
+        width: 150px;
     }
 </style>
 </head>
 <body>
-<div id="title">Red Target</div>
-<div id="title2">RC_02</div>
+<div id="title">Red Target 1.2</div>
+<div id="controlsContainer">
+</div>
 <canvas id="gameCanvas"></canvas>
 <div id="buttonContainer">
+    <label for="circleSizeSlider" style="color: white; font-size: 16px;">Orb Size</label>
+    <input type="range" id="circleSizeSlider" min="5" max="50" value="15" step="1">
     <button class="spawnButton" id="blueSpawnButton">Spawn Blue Circle (Space)</button>
     <button class="spawnButton" id="redSpawnButton">Spawn Red Circle (Shift)</button>
+    <button class="spawnButton" id="greenSpawnButton">Spawn Green Circle (Ctrl)</button>
+    <button class="spawnButton" id="toggleGlowButton">Toggle Glow</button>
+    <button class="spawnButton" id="uploadBackgroundButton">Upload Background Image</button> <!-- Added Upload Background Image button -->
+    <input type="file" id="backgroundImageInput" accept="image/*" style="display: none;"> <!-- Added hidden file input element -->
 </div>
+<div id="fpsCounter">FPS: idk</div>
+<div id="objectCounter">Circles: 0</div>
+<input type="range" id="zoomSlider" min="1" max="5" value="1" step="0.1">
 
 <script>
     // Initialize canvas
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth * 0.95;
+    canvas.height = window.innerHeight * 0.95;
 
     // Circle arrays
     let blueCircles = [];
     let redCircles = [];
 
-    // Function to draw circles
+    // FPS Counter variables
+    let lastFrameTime = performance.now();
+    let frameCounter = 0;
+    let fpsCounter = document.getElementById('fpsCounter');
+
+    // Object Counter variables
+    let objectCounter = document.getElementById('objectCounter');
+
+    // Zoom level
+    let zoomLevel = 1;
+
+    // Circle size
+    let circleSize = 15;
+
+    // Glow toggle
+    let glowEnabled = true;
+
+    // Function to draw circles with scaling
+    function drawScaledCircle(x, y, radius, color) {
+        ctx.save();
+        ctx.scale(zoomLevel, zoomLevel);
+        drawCircle(x / zoomLevel, y / zoomLevel, radius / zoomLevel, color);
+        ctx.restore();
+    }
+
+    // Function to draw circles with glow effect
     function drawCircle(x, y, radius, color) {
+        ctx.save();
+        if (glowEnabled) {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 20; // Adjust the blur radius as needed
+        }
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
         ctx.closePath();
+        ctx.restore(); // Restore default drawing settings
     }
 
     // Function to update canvas
     function updateCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         blueCircles.forEach(circle => {
-            drawCircle(circle.x, circle.y, circle.radius, 'blue');
+            drawScaledCircle(circle.x, circle.y, circle.radius, circle.color);
         });
         redCircles.forEach(circle => {
-            drawCircle(circle.x, circle.y, circle.radius, 'red');
+            drawScaledCircle(circle.x, circle.y, circle.radius, 'red');
         });
     }
 
     // Function to handle mouse events
     function handleMouseEvent(event) {
-        const mouseX = event.clientX;
-        const mouseY = event.clientY;
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
 
         // Check if mouse is within any circle
         let selectedCircleIndex = -1;
@@ -102,15 +198,14 @@
             // Mouse move event listener
             const mouseMoveHandler = (e) => {
                 if (isDragging) {
-                    let newX = e.clientX - offsetX;
-                    let newY = e.clientY - offsetY;
+                    const rect = canvas.getBoundingClientRect();
+                    const newX = e.clientX - rect.left - offsetX;
+                    const newY = e.clientY - rect.top - offsetY;
 
                     // Ensure the circle stays within the canvas bounds
-                    newX = Math.max(selectedCircle.radius, Math.min(canvas.width - selectedCircle.radius, newX));
-                    newY = Math.max(selectedCircle.radius, Math.min(canvas.height - selectedCircle.radius, newY));
+                    selectedCircle.x = Math.max(selectedCircle.radius, Math.min(canvas.width - selectedCircle.radius, newX));
+                    selectedCircle.y = Math.max(selectedCircle.radius, Math.min(canvas.height - selectedCircle.radius, newY));
 
-                    selectedCircle.x = newX;
-                    selectedCircle.y = newY;
                     updateCanvas();
                 }
             };
@@ -134,15 +229,24 @@
     // Event listener for mouse down
     canvas.addEventListener('mousedown', handleMouseEvent);
 
-    // Function to spawn blue circle
-    function spawnBlueCircle() {
+    // Function to spawn circle
+    function spawnCircle(x, y, radius, color) {
         const circle = {
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height,
-            radius: 15
+            x: x,
+            y: y,
+            radius: radius,
+            color: color
         };
         blueCircles.push(circle);
         updateCanvas();
+    }
+
+    // Function to spawn blue circle
+    function spawnBlueCircle() {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const color = 'blue'; // Default color is blue
+        spawnCircle(x, y, circleSize, color);
     }
 
     // Function to spawn red circle
@@ -158,9 +262,24 @@
         updateCanvas();
     }
 
-    // Function to delete all red circles
-    function deleteRedCircles() {
+    // Function to spawn green circle
+    function spawnGreenCircle() {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        const color = '#39FF14'; // Neon green color
+        spawnCircle(x, y, circleSize, color);
+    }
+
+    // Function to delete all circles
+    function deleteAllCircles() {
+        blueCircles = [];
         redCircles = [];
+        updateCanvas();
+    }
+
+    // Function to toggle glow effect
+    function toggleGlow() {
+        glowEnabled = !glowEnabled;
         updateCanvas();
     }
 
@@ -170,17 +289,78 @@
             spawnBlueCircle();
         } else if (event.code === 'ShiftLeft') {
             spawnRedCircle();
-        } else if (event.code === 'Tab') {
-            deleteRedCircles();
+        } else if (event.code === 'ControlLeft' || event.code === 'ControlRight') {
+            spawnGreenCircle();
         }
+    });
+
+    // Event listener for Q key to remove all circles
+    window.addEventListener('keydown', (event) => {
+        if (event.code === 'KeyQ') {
+            deleteAllCircles();
+        }
+    });
+
+    // Event listener for glow toggle button
+    document.getElementById('toggleGlowButton').addEventListener('click', toggleGlow);
+
+    // Event listener for zoom slider
+    const zoomSlider = document.getElementById('zoomSlider');
+    zoomSlider.addEventListener('input', function() {
+        zoomLevel = parseFloat(this.value);
+        updateCanvas();
+    });
+
+    // Event listener for circle size slider
+    const circleSizeSlider = document.getElementById('circleSizeSlider');
+    circleSizeSlider.addEventListener('input', function() {
+        circleSize = parseFloat(this.value);
     });
 
     // Event listeners for buttons
     document.getElementById('blueSpawnButton').addEventListener('click', spawnBlueCircle);
     document.getElementById('redSpawnButton').addEventListener('click', spawnRedCircle);
+    document.getElementById('greenSpawnButton').addEventListener('click', spawnGreenCircle);
+
+    // Event listener for uploading background image
+    document.getElementById('uploadBackgroundButton').addEventListener('click', function() {
+        document.getElementById('backgroundImageInput').click();
+    });
+
+    // Event listener for background image input change
+    document.getElementById('backgroundImageInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            const img = new Image();
+            img.src = e.target.result;
+
+            img.onload = function() {
+                canvas.style.background = 'url(' + img.src + ')';
+                canvas.style.backgroundSize = 'cover';
+            };
+        };
+
+        reader.readAsDataURL(file);
+    });
 
     // Update function to move red circles towards blue circles
     function update() {
+        // Calculate FPS
+        const currentTime = performance.now();
+        const delta = currentTime - lastFrameTime;
+        lastFrameTime = currentTime;
+        frameCounter++;
+        if (delta >= 1000) {
+            const fps = Math.round((frameCounter * 1000) / delta);
+            fpsCounter.innerText = 'FPS: ' + fps;
+            frameCounter = 0;
+        }
+
+        // Update Object Counter
+        objectCounter.innerText = 'Circles: ' + (blueCircles.length + redCircles.length);
+
         redCircles.forEach(redCircle => {
             // Find the closest blue circle to target
             let minDistance = Infinity;
